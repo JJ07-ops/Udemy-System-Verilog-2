@@ -1,4 +1,4 @@
-###Assignment agenda: Add two independent tasks in the driver: one to perform write operations on the FIFO until it becomes full, and another to read back all the data from the FIFO.
+##Assignment agenda: Add two independent tasks in the driver: one to perform write operations on the FIFO until it becomes full, and another to read back all the data from the FIFO.
 
 Add two tasks in the driver code
 
