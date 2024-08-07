@@ -27,7 +27,3 @@ endclass
 Update Driver code to handle these transaction. Expected Test cases should show following behavior.
 
 
-
-
-Questions for this assignment
-Add two independent tasks in the driver: one to perform write operations on the FIFO until it becomes full, and another to read back all the data from the FIFO.
