@@ -9,18 +9,30 @@ Add two tasks in the driver code
 In the main task of driver call these two task in sequence
 
 class driver;
+
 .................
+
 ................
+
  
  task run();
+ 
     forever
+    
     begin
+    
     write_till_full();
+    
     read_till_empty();
+    
     end
+    
   endtask
+  
 ...............
+
 ...............
+
 endclass
 
 
