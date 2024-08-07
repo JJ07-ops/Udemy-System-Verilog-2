@@ -1,0 +1,1 @@
+Assignment agenda: The design engineer has modified the D-FF code to handle 1'bx values on the DIN wire. Analyze the modified design code of the D-FF in the instruction to gain a better understanding. Additionally, modify the scoreboard to consider DOUT = 1'b0 as valid when DIN = 1'bx and display "Test Passed".
