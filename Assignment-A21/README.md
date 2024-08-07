@@ -7,6 +7,10 @@ Add two tasks in the driver code
 2) read_till_empty: this will perform series of read operations till empty flag is set.
 
 In the main task of driver call these two task in sequence
+.................
+
+................
+
 
 class driver;
 
@@ -34,6 +38,10 @@ class driver;
 ...............
 
 endclass
+.................
+
+................
+
 
 
 Update Driver code to handle these transaction. Expected Test cases should show following behavior.
