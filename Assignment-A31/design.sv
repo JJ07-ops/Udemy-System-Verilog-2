@@ -1,5 +1,5 @@
-//design code given in the question
- module spi_master(
+//design code given in the question (slightly modified by the student)
+ module spi(
 input clk, newd,rst,
 input [11:0] din, 
 output reg sclk,cs,mosi
@@ -12,7 +12,7 @@ output reg sclk,cs,mosi
   int count = 0;
  
   /////////////////////////generation of sclk
- always@(posedge clk)
+   always@(posedge clk) 
   begin
     if(rst == 1'b1) begin
       countc <= 0;
@@ -33,7 +33,7 @@ output reg sclk,cs,mosi
     reg [11:0] temp;
     
     
-  always@(posedge sclk)
+   always@(posedge sclk) 
   begin
     if(rst == 1'b1) 
     begin
@@ -50,7 +50,7 @@ output reg sclk,cs,mosi
                  temp <= din; 
                  cs <= 1'b0;
                  mosi <= din[0];
-                 count <= 1;
+                 count <= 0;
                  end
                else begin
                  state <= idle;
