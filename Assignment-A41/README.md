@@ -1,0 +1,1 @@
+Assignment agenda: Modify the Testbench environment used for the verification of UART to test the operation of the UART transmitter with PARITY and STOP BIT. Add logic in scoreboard to verify that the data on TX pin matches the random 8-bit data applied on the DIN bus by the user.Parity is always enabled and odd type.
