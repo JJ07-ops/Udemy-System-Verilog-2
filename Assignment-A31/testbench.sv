@@ -2,7 +2,7 @@
 
 Create a testbench environment for validating the SPI interface's ability to transmit data serially immediately when the CS signal goes low. Utilize the negative edge of the SCLK to sample the MOSI signal in order to generate reference data. Codes are added in Instruction tab.
 
-Student's note: Testbench code was done by the student from scratch, with some reference to look on based on previous example given by the lecturer.
+Student's note: Testbench code was done by the student from scratch, with help of reference code based on previous example given by the lecturer.
 
 */
 
@@ -39,8 +39,8 @@ endinterface
 //generator class
 class generator;
   transaction tr;
-  mailbox #(transaction) mbxdrv;
-  mailbox #(bit [11:0]) mbxsco;
+  mailbox #(transaction) mbx;
+  mailbox #(bit [11:0]) mbxref;
   
   event done;
   event sconext;
@@ -49,21 +49,23 @@ class generator;
   int counter;
   
   //constructor
-  function new(mailbox #(transaction) mbxdrv, mailbox #(bit [11:0]) mbxsco);
+  function new(mailbox #(transaction) mbx, mailbox #(bit [11:0]) mbxref);
     tr = new();
-    this.mbxdrv = mbxdrv;
-    this.mbxsco = mbxsco;
+    this.mbx = mbx;
+    this.mbxref = mbxref;
   endfunction
   
   //task main
-  task main();
+  task run();
     repeat(counter) begin
       assert(tr.randomize()) else $error("[GEN] : Randomization failed");
-      mbxdrv.put(tr.copy);
-      mbxsco.put(tr.din);
+      mbx.put(tr.copy);
+      mbxref.put(tr.din);
       tr.display("GEN");
-      @sconext;
       @drvnext;
+      @sconext;
+      //$display("here1");
+      //$display("here2");
     end 
     -> done;
   endtask
@@ -116,9 +118,10 @@ class driver;
       @(negedge vif.sclk);
       vif.newd <= 1'b0;
       
-      //wait for duty to be over
+      //wait for cs to be low
       wait(vif.cs == 1'b0);
       tr.display("DRV");
+      -> drvnext;
     end
   endtask
   
@@ -126,49 +129,176 @@ class driver;
 endclass
 
 //monitor class
+class monitor;
+  virtual spi_if vif;
+  mailbox #(bit [11:0]) mbx;
+  bit [11:0] serialdata; //received data
+  
+  //constructor
+  function new(mailbox #(bit [11:0]) mbx);
+    this.mbx = mbx;
+  endfunction
+
+  
+  //Task to run
+  task run();
+    forever begin
+      @(negedge vif.sclk);
+      wait(vif.cs == 1'b0);
+      @(negedge vif.sclk);
+      
+      for(int i = 0;i < 12;i++) begin
+        @(negedge vif.sclk);
+        serialdata[i] = vif.mosi;
+      end
+      
+      //wait for serialdata to be finished updating before sending to scoreboard
+      wait(vif.cs == 1'b1);
+      $display("[MON] : DATA RCVD : %0d", serialdata);
+      mbx.put(serialdata);
+    end
+  endtask
+  
+  
+endclass
 
 //scoreboard class
+class scoreboard;
+  mailbox #(bit [11:0]) mbx;
+  mailbox #(bit [11:0]) mbxref;
+  bit [11:0] dataref;
+  bit [11:0] serialdata;
+  event sconext;
+  
+  //constructor
+  function new(mailbox #(bit [11:0]) mbx, mbxref);
+    this.mbxref = mbxref;
+    this.mbx = mbx;
+  endfunction
+  
+  //main task
+  task run();
+    forever begin
+      mbxref.get(dataref);
+      mbx.get(serialdata);
+      $display("[SCO] : DATA FROM GEN : %0d DATA FROM MON : %0d", dataref, serialdata);
+      
+      if(dataref == serialdata)
+        $display("TEST PASSED");
+      else
+        $display("TEST FAILED");
+      
+      $display("-----------------------------------------------");
+      -> sconext;
+      
+    end
+  endtask
+endclass
 
 //environment class
+class environment;
+  
+  //call all the classes
+  generator gen;
+  driver drv;
+  monitor mon;
+  scoreboard sco;
+  
+  //call the events and interface and mailboxes
+  event nextgd;
+  event nextgs;
+  virtual spi_if vif;
+  mailbox #(transaction) mbxgd;
+  mailbox #(bit [11:0]) mbxms;
+  mailbox #(bit [11:0]) mbxgs;
+  
+  //Constructor and connect all the variables
+  function new(virtual spi_if vif);
+    
+    //construct the mailboxes
+    mbxgd = new();
+    mbxms = new();
+    mbxgs = new();
+    
+    //construct the classes and connect the mailboxes
+    gen = new(mbxgd,mbxgs);
+    drv = new(mbxgd);
+    mon = new(mbxms);
+    sco = new(mbxms,mbxgs); 
+      
+    //connect the events
+    gen.sconext = nextgs;
+    gen.drvnext = nextgd;
+    drv.drvnext = nextgd;
+    sco.sconext = nextgs;
+    
+    
+    //connect the interfaces
+    this.vif = vif;
+    drv.vif = this.vif;
+    mon.vif = this.vif;
+    
+  endfunction
+  
+  //pre-test
+  task pre_test();
+    drv.reset();
+  endtask
+  
+  //test
+  task test();
+    fork
+      gen.run();
+      drv.run();
+      mon.run();
+      sco.run();
+    join_any
+  endtask
+  
+  //post-test
+  task post_test();
+    wait(gen.done.triggered); //add delay after this?
+    $finish();
+  endtask
+  
+  //run
+  task run;
+    pre_test();
+    test();
+    post_test();
+  endtask
+  
+  
+  
+endclass
 
 //testbench top
 module tb(  );
- 
-reg clk = 0, rst = 0, newd = 0;
-reg [11:0] din = 0;
-wire sclk, cs, mosi;
-  reg [11:0] mosi_out = 0;
- 
-always #10 clk = ~clk;
- 
-spi_master dut (clk, newd,rst, din, sclk, cs, mosi);
- 
-initial 
-begin
-rst = 1;
-repeat(5) @(posedge clk);
-rst = 0;
- 
-newd = 1;
-din = $urandom;
-  $display("%0d", din); 
-  for(int i = 0; i <= 11; i++)
-    begin
-    @(negedge dut.sclk);
-    mosi_out = {mosi, mosi_out[11:1]};
-    $display("%0d", mosi_out);  
-    end
+  //call the interface
+  spi_if vif();
+  spi dut(vif.clk,vif.newd,vif.rst,vif.din,vif.sclk,vif.cs,vif.mosi); 
   
+  //set the clock
+  initial begin
+    vif.clk <= 0;
+  end
   
-end
- 
- 
- 
+  always #10 vif.clk <= ~vif.clk;
+  
+  //call the environment class
+  environment env;
+  
+  //construct and run the environment class
+  initial begin
+    env = new(vif);
+    env.gen.counter = 10;
+    env.run();
+  end
+  
+  //dump file
   initial begin
     $dumpfile("dump.vcd");
     $dumpvars;
-    #2500;
-    $stop;
   end
  
 endmodule
