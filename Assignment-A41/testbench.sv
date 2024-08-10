@@ -12,7 +12,7 @@ class transaction;
   
   //declare the other data variables
   rand bit [7:0] tx_data;
-  bit newd; //rand?
+  bit newd; 
   bit tx;
   bit donetx;
   
