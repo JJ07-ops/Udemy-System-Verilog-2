@@ -1,34 +1,28 @@
-//NOT DONE
+/*Assignment agenda:
+
+Modify the Testbench environment used for the verification of UART to test the operation of the UART transmitter with PARITY and STOP BIT. 
+Add logic in scoreboard to verify that the data on TX pin matches the random 8-bit data applied on the DIN bus by the user.Parity is always enabled and odd type.
+
+*/
 
 `timescale 1ns/1ps
 
 //transaction class
 class transaction;
   
-  //declare the variables for operation type
-  typedef enum bit  {write = 1'b0 , read = 1'b1} oper_type;
-  randc oper_type oper;
-  
   //declare the other data variables
-  bit rx;
-  rand bit [7:0] dintx;
-  bit newd;
+  rand bit [7:0] tx_data;
+  bit newd; //rand?
   bit tx;
-  bit [7:0] doutrx;
   bit donetx;
-  bit donerx;
   
   //deep copy
   function transaction copy();
     copy = new();
-    copy.rx = this.rx;
-    copy.dintx = this.dintx;
     copy.newd = this.newd;
     copy.tx = this.tx;
-    copy.doutrx = this.doutrx;
+    copy.tx_data = this.tx_data;
     copy.donetx = this.donetx;
-    copy.donerx = this.donerx;
-    copy.oper = this.oper;
   endfunction
   
 endclass
@@ -36,16 +30,12 @@ endclass
 //interface
 interface uart_if;
   logic clk;
-  logic uclktx;
-  logic uclkrx;
   logic rst;
-  logic rx;
-  logic [7:0] dintx;
   logic newd;
+  logic [7:0] tx_data;
   logic tx;
-  logic [7:0] doutrx;
   logic donetx;
-  logic donerx;
+  logic uclktx;
 endinterface
 
  
@@ -72,11 +62,13 @@ class generator;
     repeat(count) begin
       assert(tr.randomize) else $error("[GEN] :Randomization Failed");
       mbx.put(tr.copy);
-      $display("[GEN]: Oper : %0s Din : %0d",tr.oper.name(), tr.dintx);
+      $display("[GEN]: Input tx_data : %0d",tr.tx_data);
       @(drvnext);
+      
       @(sconext);
     end
     -> done;
+
     
   endtask
 endclass
@@ -92,8 +84,6 @@ class driver;
   event drvnext;
   
   bit [7:0] din;
-  bit wr = 0;  ///random operation read / write
-  bit [7:0] datarx;  ///data rcvd during read
   
   //custom constructor
   function new(mailbox #(bit [7:0]) mbxds, mailbox #(transaction) mbx);
@@ -104,9 +94,9 @@ class driver;
   //reset
   task reset();
     vif.rst <= 1'b1;
-    vif.dintx <= 0;
+    vif.tx_data <= 0;
     vif.newd <= 0;
-    vif.rx <= 1'b1;
+    vif.donetx <= 0; //
  
     repeat(5) @(posedge vif.uclktx);
     vif.rst <= 1'b0;
@@ -121,49 +111,21 @@ class driver;
   
     forever begin
       mbx.get(tr);
-      
-      if(tr.oper == 1'b0)  ////data transmission
-          begin
             
-            @(posedge vif.uclktx);
-            vif.rst <= 1'b0;
-            vif.newd <= 1'b1;  ///start data sending op
-            vif.rx <= 1'b1;
-            vif.dintx = tr.dintx;
-            @(posedge vif.uclktx);
-            vif.newd <= 1'b0;
-              ////wait for completion 
-            //repeat(9) @(posedge vif.uclktx);
-            mbxds.put(tr.dintx);
-            $display("[DRV]: Data Sent : %0d", tr.dintx);
-             wait(vif.donetx == 1'b1);  
-             ->drvnext;  
-          end
-      
-      else if (tr.oper == 1'b1) begin
-        
-                 
-        @(posedge vif.uclkrx);
-        vif.rst <= 1'b0;
-        vif.rx <= 1'b0;
-        vif.newd <= 1'b0;
-        @(posedge vif.uclkrx);
-                  
-        for(int i=0; i<=7; i++) begin   
-          @(posedge vif.uclkrx);                
-          vif.rx <= $urandom;
-          datarx[i] = vif.rx;                                      
-        end 
-                 
-                 
-        mbxds.put(datarx);
-        
-        $display("[DRV]: Data RCVD : %0d", datarx); 
-        wait(vif.donerx == 1'b1);
-        vif.rx <= 1'b1;
-        ->drvnext;
-                 
-      end         
+      @(posedge vif.uclktx);
+      vif.rst <= 1'b0;
+      vif.newd <= 1'b1;  ///start data sending op
+      vif.tx_data = tr.tx_data;
+      @(posedge vif.uclktx);
+      vif.newd <= 1'b0;
+      ////wait for completion 
+      //repeat(9) @(posedge vif.uclktx);
+      mbxds.put(tr.tx_data);
+      $display("[DRV]: Data Sent : %0d", tr.tx_data);
+      wait(vif.donetx == 1'b1);  
+      ->drvnext;  
+
+   
     end   
   endtask
 endclass
@@ -174,43 +136,39 @@ class monitor;
  
   //declare the data variables
   transaction tr;
-  mailbox #(bit [7:0]) mbx;
+  mailbox #(bit [8:0]) mbx;
   virtual uart_if vif;
 
-  bit [7:0] srx; //////send
-  bit [7:0] rrx; ///// recv
+  bit [8:0] srx; //////send
   
-  function new(mailbox #(bit [7:0]) mbx);
+  function new(mailbox #(bit [8:0]) mbx);
     this.mbx = mbx;
   endfunction
   
   task run();
     
     forever begin
+      //@(posedge vif.uclktx);
+      //@(posedge vif.uclktx);
+      
+      wait(vif.newd == 1);
       @(posedge vif.uclktx);
-      if ( (vif.newd== 1'b1) && (vif.rx == 1'b1) ) begin
-        
+      
+      if ( (vif.newd== 1'b1) ) begin
         @(posedge vif.uclktx); 
         
         ////start collecting tx data from next clock tick
-        for(int i = 0; i<= 7; i++) begin 
+        for(int i = 0; i<= 8; i++) begin 
           @(posedge vif.uclktx);
           srx[i] = vif.tx;
         end
-        $display("[MON] : DATA SEND on UART TX %0d", srx);
+      $display("[MON] : DATA SEND on UART TX %0d", srx);
+      end
                   
-        //////////wait for done tx before proceeding next transaction        
-        @(posedge vif.uclktx); 
-        mbx.put(srx);
-      end
-      
-      else if ((vif.rx == 1'b0) && (vif.newd == 1'b0) ) begin
-        wait(vif.donerx == 1);
-        rrx = vif.doutrx;     
-        $display("[MON] : DATA RCVD RX %0d", rrx);
-        @(posedge vif.uclktx); 
-        mbx.put(rrx);
-      end
+      //////////wait for done tx before proceeding next transaction      
+      wait(vif.donetx == 1);
+      @(posedge vif.uclktx); 
+      mbx.put(srx); 
     end  
 endtask
   
@@ -222,13 +180,15 @@ endclass
 class scoreboard;
   
   //declare the data variables
-  mailbox #(bit [7:0]) mbxds, mbxms;
+  mailbox #(bit [7:0]) mbxds;
+  mailbox #(bit [8:0]) mbxms;
   bit [7:0] ds;
-  bit [7:0] ms;
+  bit [8:0] ms;
   event sconext;
+  bit parity;
   
   //custom constructor
-  function new(mailbox #(bit [7:0]) mbxds, mailbox #(bit [7:0]) mbxms);
+  function new(mailbox #(bit [7:0]) mbxds, mailbox #(bit [8:0]) mbxms);
     this.mbxds = mbxds;
     this.mbxms = mbxms;
   endfunction
@@ -237,12 +197,17 @@ class scoreboard;
   task run();
     forever begin
       
+      
       mbxds.get(ds);
       mbxms.get(ms);
       
-      $display("[SCO] : DRV : %0d MON : %0d", ds, ms);
+      //calculate parity from ref
+      parity = ~^ds;
       
-      if(ds == ms)
+      $display("[SCO] : DRV : %0d MON : %0d", ds, ms);
+      $display("[SCO] : DRVParity : %0d MONParity : %0d", parity, ms[8]);
+      
+      if(ds == ms[7:0] && parity == ms[8])
         $display("DATA MATCHED");
       else
         $display("DATA MISMATCHED");
@@ -268,7 +233,7 @@ class environment;
  
   mailbox #(transaction) mbxgd; ///gen - drv
   mailbox #(bit [7:0]) mbxds; /// drv - sco 
-  mailbox #(bit [7:0]) mbxms;  /// mon - sco
+  mailbox #(bit [8:0]) mbxms;  /// mon - sco
   virtual uart_if vif;
  
   
@@ -330,7 +295,7 @@ module tb;
     
   uart_if vif();
   
-  uarttx #(1000000, 9600) dut (vif.clk,vif.rst,vif.rx,vif.dintx,vif.newd,vif.tx,vif.doutrx,vif.donetx, vif.donerx);
+  uarttx #(1000000, 9600) dut (vif.clk,vif.rst,vif.newd,vif.tx_data,vif.tx,vif.donetx);
   
   initial begin
     vif.clk <= 0;
@@ -342,7 +307,7 @@ module tb;
   
   initial begin
     env = new(vif);
-    env.gen.count = 5;
+    env.gen.count = 10;
     env.run();
   end
       
@@ -350,9 +315,10 @@ module tb;
   initial begin
     $dumpfile("dump.vcd");
     $dumpvars;
+    //#200000
+    //$finish();
   end
    
-  assign vif.uclktx = dut.utx.uclk;
-  assign vif.uclkrx = dut.rtx.uclk;
+  assign vif.uclktx = dut.uclk;
 
 endmodule
