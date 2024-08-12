@@ -16,7 +16,7 @@ class transaction;
   bit [7:0] dout;
   bit done;
   bit busy;
-  const bit ack_err = 1;
+  bit ack_err = 0; //turns to 1 as in design code, ack_errs and ack_errm was triggered to be 1
   
   constraint addr_c { addr > 1; addr < 5; din > 1; din < 10; }
   
@@ -171,6 +171,7 @@ class monitor;
       tr.addr = vif.addr;
       tr.op = vif.op;
       tr.dout = vif.dout;
+      tr.ack_err = vif.ack_err;
       repeat(5) @(posedge vif.clk);
       mbxms.put(tr); 
       $display("[MON] op:%0d, addr: %0d, din : %0d, dout:%0d, ackerr : %0d", tr.op, tr.addr, tr.din, tr.dout, tr.ack_err);
@@ -212,12 +213,17 @@ class scoreboard;
       
       mbxms.get(tr);
       temp = mem[tr.addr];
-                
+               
+      if(tr.ack_err == 1)
+        $display("Error detected successfully");
+      else
+        $display("Error failed to detect");
+      
       
       if(tr.op == 1'b0)
                 begin   
                   mem[tr.addr] = tr.din;
-                  $display("[SCO]: DATA STORED -> ADDR : %0d DATA : %0d , ackerr : %0d", tr.addr, tr.din, tr.ackerr);
+                  $display("[SCO]: DATA STORED -> ADDR : %0d DATA : %0d , ackerr : %0d", tr.addr, tr.din, tr.ack_err);
                   $display("-----------------------------------------------");
                 end
        else 
