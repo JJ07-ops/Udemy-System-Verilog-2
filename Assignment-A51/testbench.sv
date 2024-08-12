@@ -16,7 +16,7 @@ class transaction;
   bit [7:0] dout;
   bit done;
   bit busy;
-  bit ack_err = 0; //turns to 1 as in design code, ack_errs and ack_errm was triggered to be 1
+  bit ack_err = 0; //turns to 1 as in design code, ack_errs and ack_errm was triggered to be 1 at the slave side
   
   constraint addr_c { addr > 1; addr < 5; din > 1; din < 10; }
   
@@ -88,16 +88,13 @@ class driver;
     vif.op <= 1'b0;
     vif.din <= 0;
     vif.addr  <= 0;
-    vif.ack_err <= 1;
     repeat(10) @(posedge vif.clk);
     vif.rst <= 1'b0;
-    vif.ack_err <= 1;
     $display("[DRV] : RESET DONE"); 
     $display("---------------------------------"); 
   endtask
   
   task write();
-    vif.ack_err <= 1;
     vif.rst <= 1'b0;
     vif.newd <= 1'b1;
     vif.op <= 1'b0;
@@ -113,7 +110,6 @@ class driver;
   endtask
   
    task read();
-    vif.ack_err <= 1;
     vif.rst <= 1'b0;
     vif.newd <= 1'b1;
     vif.op <= 1'b1;
