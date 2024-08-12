@@ -513,7 +513,7 @@ if(rst)
                   addr  <= 0;
                   r_mem <= 0;
                   din   <= 8'h00; 
-                  ack_err <= 0;
+                  ack_err <= 1; //
                   done    <= 1'b0;
                   busy <= 1'b0;
  end
@@ -701,7 +701,7 @@ if(rst)
                                          begin
                                                if(r_ack == 1'b1) ///nack
                                                    begin
-                                                   ack_err <= 1'b0;
+                                                   ack_err <= 1'b1; //
                                                    state <= detect_stop;
                                                    sda_en <= 1'b0;
                                                    end
@@ -758,7 +758,7 @@ output busy,ack_err,
 output done
 );
 wire sda, scl;
-wire ack_errm = 1, ack_errs = 1;
+wire ack_errm, ack_errs;
  
  
 i2c_master master (clk, rst, newd, addr, op, sda, scl, din, dout, busy, ack_errm , done);
