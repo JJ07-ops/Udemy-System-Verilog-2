@@ -758,7 +758,7 @@ output busy,ack_err,
 output done
 );
 wire sda, scl;
-wire ack_errm, ack_errs;
+wire ack_errm = 1, ack_errs = 1;
  
  
 i2c_master master (clk, rst, newd, addr, op, sda, scl, din, dout, busy, ack_errm , done);
